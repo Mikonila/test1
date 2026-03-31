@@ -1,0 +1,414 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Serenity — Anxiety Support</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root {
+      --bg: #f2f8f6; --card: #ffffff; --primary: #3d8b7d;
+      --primary-soft: #d9efe9; --text: #1f2e2b; --muted: #67807b;
+      --shadow: 0 6px 24px rgba(31,46,43,.08);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: Inter, system-ui, sans-serif; background: var(--bg); color: var(--text); }
+    .app-shell { max-width: 560px; margin: 0 auto; min-height: 100dvh; display: flex; flex-direction: column; padding-bottom: 72px; }
+    .topbar { padding: 16px; display: flex; justify-content: space-between; align-items: center; }
+    .topbar h1 { margin: 0; font-size: 1.4rem; }
+    .subtitle { margin: 3px 0 0; color: var(--muted); font-size: .86rem; }
+    .badge { background: var(--primary-soft); color: var(--primary); padding: 8px 10px; border-radius: 999px; font-size: .78rem; }
+    main { padding: 0 14px 20px; }
+    .view { display: none; }
+    .view.active { display: block; }
+    h2 { font-size: 1.2rem; margin: 10px 4px; }
+    h3 { margin-top: 0; }
+    .card { background: var(--card); border-radius: 16px; padding: 14px; box-shadow: var(--shadow); margin-bottom: 12px; }
+    .card.center { text-align: center; }
+    label { display: block; font-size: .88rem; margin: 10px 0 6px; color: var(--muted); }
+    input[type="range"], input[type="number"], textarea, select {
+      width: 100%; border: 1px solid #d7e6e2; border-radius: 10px; padding: 10px;
+      background: #fff; color: var(--text); font-size: 1rem;
+    }
+    textarea { min-height: 88px; resize: vertical; }
+    button { border: none; background: #eaf4f1; color: var(--text); border-radius: 12px; padding: 10px 14px; font-weight: 600; cursor: pointer; font-size: .9rem; }
+    button.primary { background: var(--primary); color: #fff; }
+    button:active { transform: scale(.98); }
+    .emoji-row { display: grid; grid-template-columns: repeat(5,1fr); gap: 8px; }
+    .emoji-row button { font-size: 1.3rem; padding: 8px; }
+    .emoji-row button.selected { outline: 2px solid var(--primary); background: var(--primary-soft); }
+    .row { display: flex; gap: 8px; justify-content: center; }
+    .breath-circle {
+      width: 180px; height: 180px; border-radius: 50%; margin: 8px auto;
+      background: radial-gradient(circle at center,#e7f6f2,#bde3d9);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.2rem; color: #295f56; transition: transform 3.8s ease;
+    }
+    .breath-circle.expand { transform: scale(1.12); }
+    .breath-circle.contract { transform: scale(.86); }
+    .ground-list { list-style: none; padding: 0; margin: 0; }
+    .ground-list li { padding: 6px 0; color: #35534d; display: flex; align-items: center; gap: 8px; }
+    .list-item { border: 1px solid #e0ece9; border-radius: 12px; padding: 10px; margin-bottom: 8px; }
+    .list-item small { color: var(--muted); display: block; margin-bottom: 5px; }
+    .grid-two { display: grid; grid-template-columns: repeat(2,1fr); gap: 10px; }
+    .card.small { text-align: center; }
+    .card.small span { font-size: 1.5rem; font-weight: 700; display: block; }
+    .card.small small { color: var(--muted); }
+    .chart { display: flex; gap: 5px; align-items: flex-end; min-height: 120px; padding: 8px 0; }
+    .chart .bar { flex: 1; background: linear-gradient(180deg,#8bd4c0,#3d8b7d); border-radius: 6px 6px 2px 2px; min-height: 4px; }
+    .bottom-nav {
+      position: fixed; left: 0; right: 0; bottom: 0; max-width: 560px; margin: 0 auto;
+      display: grid; grid-template-columns: repeat(5,1fr); background: #f3f9f7; border-top: 1px solid #d0e1dc;
+    }
+    .bottom-nav button { border-radius: 0; padding: 12px 6px; background: #f3f9f7; font-size: .72rem; }
+    .bottom-nav button.active { background: var(--primary-soft); color: var(--primary); }
+    .toast {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 84px;
+      background: #243b36; color: #fff; padding: 9px 16px; border-radius: 999px; font-size: .84rem; z-index: 99;
+    }
+    .hidden { display: none; }
+    .tip-box { background: var(--primary-soft); border-radius: 12px; padding: 12px; margin-bottom: 12px; font-size: .9rem; color: #1f4e46; }
+  </style>
+</head>
+<body>
+<div class="app-shell">
+  <header class="topbar">
+    <div>
+      <h1>🌿 Serenity</h1>
+      <p class="subtitle">Evidence-based anxiety support</p>
+    </div>
+    <div id="userBadge" class="badge">Guest</div>
+  </header>
+
+  <main>
+    <!-- HOME -->
+    <section id="view-home" class="view active">
+      <div id="dailyTip" class="tip-box"></div>
+      <h2>Daily Check-In</h2>
+      <div class="card">
+        <label>How is your mood today?</label>
+        <div id="moodPicker" class="emoji-row">
+          <button data-mood="1">😞</button>
+          <button data-mood="2">😕</button>
+          <button data-mood="3" class="selected">😐</button>
+          <button data-mood="4">🙂</button>
+          <button data-mood="5">😄</button>
+        </div>
+        <label>Anxiety level: <span id="anxietyValue">5</span>/10</label>
+        <input id="anxietyLevel" type="range" min="1" max="10" value="5" />
+        <label>Energy level: <span id="energyValue">5</span>/10</label>
+        <input id="energyLevel" type="range" min="1" max="10" value="5" />
+        <label>Sleep hours</label>
+        <input id="sleepHours" type="number" min="0" max="16" step="0.5" placeholder="e.g. 7.5" />
+        <label>Quick note</label>
+        <textarea id="checkinNotes" placeholder="What feels most present today?"></textarea>
+        <button id="saveCheckinBtn" class="primary" style="width:100%;margin-top:8px">Save check-in</button>
+      </div>
+    </section>
+
+    <!-- BREATHE -->
+    <section id="view-breathe" class="view">
+      <h2>Guided Breathing</h2>
+      <div class="card center">
+        <div id="breathCircle" class="breath-circle">Ready</div>
+        <p id="breathInstruction">Box breathing — 4 seconds each phase</p>
+        <div class="row" style="margin-top:12px">
+          <button id="startBreathingBtn" class="primary">▶ Start 2 min</button>
+          <button id="stopBreathingBtn">■ Stop</button>
+        </div>
+      </div>
+      <div class="card">
+        <h3>Why breathing works</h3>
+        <p style="font-size:.88rem;color:var(--muted);margin:0">Slow, paced breathing activates the parasympathetic nervous system — your body's natural calm response. Even 2 minutes lowers cortisol and heart rate.</p>
+      </div>
+    </section>
+
+    <!-- CALM -->
+    <section id="view-calm" class="view">
+      <h2>Calm Toolkit</h2>
+      <div class="card">
+        <h3>🌱 5-4-3-2-1 Grounding</h3>
+        <p style="font-size:.86rem;color:var(--muted);margin:0 0 10px">Bring yourself back to the present by noticing your senses.</p>
+        <ul class="ground-list">
+          <li><input type="checkbox" id="g1"/> <label for="g1">5 things you can <b>see</b></label></li>
+          <li><input type="checkbox" id="g2"/> <label for="g2">4 things you can <b>feel</b></label></li>
+          <li><input type="checkbox" id="g3"/> <label for="g3">3 things you can <b>hear</b></label></li>
+          <li><input type="checkbox" id="g4"/> <label for="g4">2 things you can <b>smell</b></label></li>
+          <li><input type="checkbox" id="g5"/> <label for="g5">1 thing you can <b>taste</b></label></li>
+        </ul>
+        <button id="logGroundingBtn" style="margin-top:10px">✓ Complete grounding</button>
+      </div>
+      <div class="card">
+        <h3>🧠 CBT Thought Reframe</h3>
+        <label>The anxious thought</label>
+        <textarea id="cbtThought" placeholder="e.g. I'm going to fail this completely."></textarea>
+        <label>Evidence against this thought</label>
+        <textarea id="cbtEvidence" placeholder="e.g. I've handled similar situations before."></textarea>
+        <label>Balanced replacement thought</label>
+        <textarea id="cbtBalanced" placeholder="e.g. I feel nervous, but I can handle this step by step."></textarea>
+        <button id="saveCbtBtn" class="primary" style="width:100%;margin-top:8px">Save reframe</button>
+      </div>
+    </section>
+
+    <!-- JOURNAL -->
+    <section id="view-journal" class="view">
+      <h2>Journal</h2>
+      <div class="card">
+        <label>Prompt</label>
+        <select id="promptSelect"></select>
+        <label>Your response</label>
+        <textarea id="journalResponse" placeholder="Write freely for 3–5 minutes…"></textarea>
+        <button id="saveJournalBtn" class="primary" style="width:100%;margin-top:8px">Save entry</button>
+      </div>
+      <div class="card">
+        <h3>Recent entries</h3>
+        <div id="journalList"></div>
+      </div>
+    </section>
+
+    <!-- PROGRESS -->
+    <section id="view-progress" class="view">
+      <h2>Progress</h2>
+      <div class="grid-two" style="margin-bottom:12px">
+        <div class="card small"><span id="totalCheckins">0</span><small>Check-ins</small></div>
+        <div class="card small"><span id="avgAnxiety">—</span><small>Avg Anxiety</small></div>
+        <div class="card small"><span id="exercisesDone">0</span><small>Exercises</small></div>
+        <div class="card small"><span id="journalsDone">0</span><small>Journal Entries</small></div>
+      </div>
+      <div class="card">
+        <h3>Mood trend</h3>
+        <div id="moodChart" class="chart"></div>
+      </div>
+      <div class="card">
+        <button id="clearDataBtn" style="width:100%;color:#c0392b;background:#fdecea">🗑 Clear all my data</button>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button data-view="home" class="active">🏠<br>Home</button>
+    <button data-view="breathe">🌬<br>Breathe</button>
+    <button data-view="calm">🌱<br>Calm</button>
+    <button data-view="journal">📓<br>Journal</button>
+    <button data-view="progress">📈<br>Progress</button>
+  </nav>
+</div>
+<div id="toast" class="toast hidden"></div>
+
+<script>
+// ── Telegram init ────────────────────────────────────────────────────────────
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const userName = tg?.initDataUnsafe?.user?.first_name || 'Friend';
+document.getElementById('userBadge').textContent = userName;
+
+// ── Storage helpers ──────────────────────────────────────────────────────────
+const DB = {
+  get: k => JSON.parse(localStorage.getItem(k) || '[]'),
+  set: (k, v) => localStorage.setItem(k, JSON.stringify(v)),
+  push: (k, item) => { const a = DB.get(k); a.push(item); DB.set(k, a); }
+};
+const todayKey = () => new Date().toISOString().slice(0, 10);
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.remove('hidden');
+  setTimeout(() => el.classList.add('hidden'), 2200);
+}
+
+// ── Navigation ───────────────────────────────────────────────────────────────
+function switchView(v) {
+  document.querySelectorAll('.view').forEach(x => x.classList.remove('active'));
+  document.getElementById('view-' + v).classList.add('active');
+  document.querySelectorAll('.bottom-nav button').forEach(x => x.classList.remove('active'));
+  document.querySelector(`.bottom-nav button[data-view="${v}"]`).classList.add('active');
+  if (v === 'journal') renderJournals();
+  if (v === 'progress') renderProgress();
+}
+document.querySelectorAll('.bottom-nav button').forEach(b =>
+  b.addEventListener('click', () => switchView(b.dataset.view))
+);
+
+// ── Daily tip ────────────────────────────────────────────────────────────────
+const TIPS = [
+  '💡 Anxiety is a body alarm. Slow breathing helps your nervous system feel safe.',
+  '💡 Thoughts are not facts — pause and test before believing them.',
+  '💡 Name 5 things you can see to reconnect to the present moment.',
+  '💡 Self-compassion lowers stress. Speak to yourself kindly.',
+  '💡 Tiny actions reduce overwhelm. Choose one 2-minute task and start.',
+  '💡 Sleep, movement, and connection are the three biggest anxiety reducers.',
+  '💡 Worry has a peak — if you ride it out, it always comes down.',
+];
+document.getElementById('dailyTip').textContent =
+  TIPS[new Date().getDay() % TIPS.length];
+
+// ── Check-in ─────────────────────────────────────────────────────────────────
+let selectedMood = 3;
+document.querySelectorAll('#moodPicker button').forEach(b => {
+  b.addEventListener('click', () => {
+    document.querySelectorAll('#moodPicker button').forEach(x => x.classList.remove('selected'));
+    b.classList.add('selected');
+    selectedMood = Number(b.dataset.mood);
+  });
+});
+const anxIn = document.getElementById('anxietyLevel');
+const engIn = document.getElementById('energyLevel');
+anxIn.addEventListener('input', () => document.getElementById('anxietyValue').textContent = anxIn.value);
+engIn.addEventListener('input', () => document.getElementById('energyValue').textContent = engIn.value);
+
+document.getElementById('saveCheckinBtn').addEventListener('click', () => {
+  const checkins = DB.get('checkins').filter(c => c.date !== todayKey());
+  checkins.push({
+    date: todayKey(),
+    mood: selectedMood,
+    anxiety: Number(anxIn.value),
+    energy: Number(engIn.value),
+    sleep: Number(document.getElementById('sleepHours').value || 0),
+    notes: document.getElementById('checkinNotes').value.trim()
+  });
+  DB.set('checkins', checkins);
+  toast('Check-in saved 🌿');
+  document.getElementById('checkinNotes').value = '';
+});
+
+// ── Breathing ────────────────────────────────────────────────────────────────
+let breathTimer = null, breathLeft = 120, phase = 0;
+const phases = ['Inhale', 'Hold', 'Exhale', 'Hold'];
+
+function updateBreath() {
+  const c = document.getElementById('breathCircle');
+  const t = phases[phase % 4];
+  c.textContent = t;
+  c.classList.remove('expand','contract');
+  if (t === 'Inhale') c.classList.add('expand');
+  if (t === 'Exhale') c.classList.add('contract');
+  document.getElementById('breathInstruction').textContent = t + ' • ' + breathLeft + 's left';
+}
+
+document.getElementById('startBreathingBtn').addEventListener('click', () => {
+  if (breathTimer) return;
+  breathLeft = 120; phase = 0; updateBreath();
+  breathTimer = setInterval(() => {
+    breathLeft--;
+    if (breathLeft % 4 === 0) { phase++; updateBreath(); }
+    else document.getElementById('breathInstruction').textContent = phases[phase%4] + ' • ' + breathLeft + 's left';
+    if (breathLeft <= 0) {
+      clearInterval(breathTimer); breathTimer = null;
+      document.getElementById('breathCircle').textContent = '✓';
+      document.getElementById('breathInstruction').textContent = 'Well done! Nervous system reset complete.';
+      DB.push('exercises', { type: 'box-breathing', seconds: 120, date: new Date().toISOString() });
+      toast('Breathing session complete 🌿');
+    }
+  }, 1000);
+});
+
+document.getElementById('stopBreathingBtn').addEventListener('click', () => {
+  if (breathTimer) {
+    clearInterval(breathTimer); breathTimer = null;
+    const done = 120 - breathLeft;
+    if (done > 10) DB.push('exercises', { type: 'box-breathing-partial', seconds: done, date: new Date().toISOString() });
+  }
+  document.getElementById('breathCircle').textContent = 'Paused';
+  document.getElementById('breathInstruction').textContent = 'You can restart anytime';
+});
+
+// ── Grounding ────────────────────────────────────────────────────────────────
+document.getElementById('logGroundingBtn').addEventListener('click', () => {
+  DB.push('exercises', { type: '5-4-3-2-1-grounding', seconds: 120, date: new Date().toISOString() });
+  ['g1','g2','g3','g4','g5'].forEach(id => document.getElementById(id).checked = false);
+  toast('Grounding complete 🌱');
+});
+
+// ── CBT ──────────────────────────────────────────────────────────────────────
+document.getElementById('saveCbtBtn').addEventListener('click', () => {
+  const thought  = document.getElementById('cbtThought').value.trim();
+  const balanced = document.getElementById('cbtBalanced').value.trim();
+  if (!thought || !balanced) { toast('Fill in thought and balanced thought'); return; }
+  DB.push('journals', {
+    id: Date.now(),
+    prompt: 'CBT Thought Reframe',
+    response: `Thought: ${thought}\nEvidence: ${document.getElementById('cbtEvidence').value.trim()}\nBalanced: ${balanced}`,
+    tag: 'cbt',
+    date: new Date().toISOString()
+  });
+  toast('CBT reframe saved 🧠');
+  ['cbtThought','cbtEvidence','cbtBalanced'].forEach(id => document.getElementById(id).value = '');
+});
+
+// ── Journal ──────────────────────────────────────────────────────────────────
+const PROMPTS = [
+  'What thought is making me feel anxious right now?',
+  'What evidence supports this thought, and what challenges it?',
+  'If my friend had this worry, what would I tell them?',
+  'What is a more balanced thought I can choose?',
+  'What is one small step I can take in the next 10 minutes?',
+  'Is this thought based on facts or feelings?',
+  'What would I think about this situation in a week?',
+  'What does my anxiety most need from me right now?',
+];
+const sel = document.getElementById('promptSelect');
+PROMPTS.forEach(p => { const o = document.createElement('option'); o.value = o.textContent = p; sel.appendChild(o); });
+
+document.getElementById('saveJournalBtn').addEventListener('click', () => {
+  const resp = document.getElementById('journalResponse').value.trim();
+  if (!resp) { toast('Write something first'); return; }
+  DB.push('journals', {
+    id: Date.now(),
+    prompt: sel.value,
+    response: resp,
+    tag: 'journal',
+    date: new Date().toISOString()
+  });
+  document.getElementById('journalResponse').value = '';
+  toast('Journal saved 📓');
+  renderJournals();
+});
+
+function renderJournals() {
+  const list = document.getElementById('journalList');
+  const items = DB.get('journals').slice().reverse().slice(0, 30);
+  if (!items.length) { list.innerHTML = '<p style="color:var(--muted);font-size:.88rem">No entries yet.</p>'; return; }
+  list.innerHTML = items.map(i => `
+    <div class="list-item">
+      <small>${new Date(i.date).toLocaleString()}</small>
+      <strong style="font-size:.88rem">${i.prompt}</strong>
+      <p style="margin:6px 0 0;font-size:.86rem;color:var(--muted)">${i.response.replace(/</g,'&lt;').slice(0,200)}</p>
+    </div>`).join('');
+}
+
+// ── Progress ─────────────────────────────────────────────────────────────────
+function renderProgress() {
+  const checkins  = DB.get('checkins');
+  const exercises = DB.get('exercises');
+  const journals  = DB.get('journals');
+
+  document.getElementById('totalCheckins').textContent = checkins.length;
+  document.getElementById('exercisesDone').textContent = exercises.length;
+  document.getElementById('journalsDone').textContent  = journals.length;
+
+  const avg = checkins.length
+    ? (checkins.reduce((s,c) => s + c.anxiety, 0) / checkins.length).toFixed(1)
+    : '—';
+  document.getElementById('avgAnxiety').textContent = avg;
+
+  const chart = document.getElementById('moodChart');
+  const last = checkins.slice(-14);
+  if (!last.length) { chart.innerHTML = '<p style="color:var(--muted);font-size:.86rem">No data yet.</p>'; return; }
+  chart.innerHTML = last.map(c => `<div class="bar" style="height:${Math.max(6, c.mood*20)}px" title="${c.date}: mood ${c.mood}/5"></div>`).join('');
+}
+
+document.getElementById('clearDataBtn').addEventListener('click', () => {
+  if (!confirm('Delete all your local data?')) return;
+  ['checkins','exercises','journals'].forEach(k => localStorage.removeItem(k));
+  toast('Data cleared');
+  renderProgress();
+});
+
+// ── Deep link section ─────────────────────────────────────────────────────────
+const sec = new URLSearchParams(location.search).get('section');
+if (['home','breathe','calm','journal','progress'].includes(sec)) switchView(sec);
+</script>
+</body>
+</html>
